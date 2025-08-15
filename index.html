@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genius Tracker - Offline Habit Tracker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+    <style>
+        @import url('https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css');
+        
+        /* Custom animations */
+        @keyframes bounce {
+            0%, 20%, 53%, 80%, 100% { transform: translate3d(0,0,0); }
+            40%, 43% { transform: translate3d(0, -30px, 0); }
+            70% { transform: translate3d(0, -15px, 0); }
+            90% { transform: translate3d(0, -4px, 0); }
+        }
+        
+        @keyframes ping {
+            75%, 100% { transform: scale(2); opacity: 0; }
+        }
+        
+        .animate-bounce { animation: bounce 1s infinite; }
+        .animate-ping { animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite; }
+        
+        /* Additional utility classes */
+        .backdrop-blur { backdrop-filter: blur(10px); }
+        .backdrop-blur-lg { backdrop-filter: blur(16px); }
+        .backdrop-blur-sm { backdrop-filter: blur(4px); }
+        
+        /* Gradient backgrounds */
+        .bg-gradient-purple { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .bg-gradient-blue { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .bg-gradient-main { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 25%, #1e40af 50%, #3730a3 100%); }
+        
+        /* Icons as CSS */
+        .icon { width: 20px; height: 20px; display: inline-block; }
+        .icon-user::before { content: "👤"; }
+        .icon-plus::before { content: "➕"; }
+        .icon-target::before { content: "🎯"; }
+        .icon-trending::before { content: "📈"; }
+        .icon-map::before { content: "🗺️"; }
+        .icon-settings::before { content: "⚙️"; }
+        .icon-star::before { content: "⭐"; }
+        .icon-zap::before { content: "⚡"; }
+        .icon-trophy::before { content: "🏆"; }
+        .icon-calendar::before { content: "📅"; }
+        .icon-bar::before { content: "📊"; }
+        .icon-check::before { content: "✅"; }
+        .icon-circle::before { content: "⭕"; }
+        .icon-edit::before { content: "✏️"; }
+        .icon-trash::before { content: "🗑️"; }
+        .icon-gift::before { content: "🎁"; }
+    </style>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1e40af">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./service-worker.js').catch(console.error);
+    });
+  }
+</script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const GeniusTracker = () => {
+            // Load data from localStorage or use defaults
+            const loadFromStorage = (key, defaultValue) => {
+                try {
+                    const saved = localStorage.getItem(key);
+                    return saved ? JSON.parse(saved) : defaultValue;
+                } catch {
+                    return defaultValue;
+                }
+            };
+
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [playerName, setPlayerName] = useState(() => loadFromStorage('playerName', 'Hero'));
+            const [level, setLevel] = useState(() => loadFromStorage('level', 1));
+            const [xp, setXp] = useState(() => loadFromStorage('xp', 0));
+            const [totalXp, setTotalXp] = useState(() => loadFromStorage('totalXp', 0));
+            const [coins, setCoins] = useState(() => loadFromStorage('coins', 100));
+            const [lastResetDate, setLastResetDate] = useState(() => loadFromStorage('lastResetDate', new Date().toDateString()));
+            const [showLevelUpAnimation, setShowLevelUpAnimation] = useState(false);
+            const [xpPerLevel, setXpPerLevel] = useState(() => loadFromStorage('xpPerLevel', 100));
+            const [autoResetTime, setAutoResetTime] = useState(() => loadFromStorage('autoResetTime', '00:00'));
+            
+            const [habits, setHabits] = useState(() => loadFromStorage('habits', [
+                { id: 1, name: 'Read 30 minutes', xp: 50, streak: 3, completed: false, category: 'Learning' },
+                { id: 2, name: 'Exercise', xp: 75, streak: 1, completed: true, category: 'Health' },
+                { id: 3, name: 'Meditate', xp: 25, streak: 5, completed: false, category: 'Wellness' }
+            ]));
+
+            const [rewards, setRewards] = useState(() => loadFromStorage('rewards', [
+                { id: 1, name: 'Watch Movie', cost: 200, type: 'entertainment' },
+                { id: 2, name: 'Buy Coffee', cost: 150, type: 'treat' },
+                { id: 3, name: 'Gaming Session', cost: 300, type: 'entertainment' }
+            ]));
+
+            const [roadmapSections, setRoadmapSections] = useState(() => loadFromStorage('roadmapSections', [
+                { 
+                    id: 1, 
+                    title: 'Foundation Builder', 
+                    level: '1-10',
+                    description: 'Master the basics of habit formation',
+                    milestones: ['Complete 7-day streak', 'Reach level 5', 'Earn 1000 XP']
+                },
+                { 
+                    id: 2, 
+                    title: 'Consistency Champion', 
+                    level: '11-25',
+                    description: 'Build unbreakable habit chains',
+                    milestones: ['30-day streak', 'Complete 50 habits', 'Unlock 5 rewards']
+                },
+                { 
+                    id: 3, 
+                    title: 'Habit Master', 
+                    level: '26-50',
+                    description: 'Transform your life through habits',
+                    milestones: ['100-day streak', 'Master 10 habits', 'Reach level 50']
+                }
+            ]));
+
+            const [newHabit, setNewHabit] = useState({ name: '', xp: 50, category: 'General' });
+            const [newReward, setNewReward] = useState({ name: '', cost: 100, type: 'treat' });
+            const [newSection, setNewSection] = useState({ 
+                title: '', 
+                levelStart: '', 
+                levelEnd: '', 
+                description: '', 
+                milestones: [''] 
+            });
+            const [editingPlayer, setEditingPlayer] = useState(false);
+            const [tempPlayerName, setTempPlayerName] = useState(playerName);
+
+            // Save to localStorage whenever state changes
+            useEffect(() => { localStorage.setItem('playerName', JSON.stringify(playerName)); }, [playerName]);
+            useEffect(() => { localStorage.setItem('level', JSON.stringify(level)); }, [level]);
+            useEffect(() => { localStorage.setItem('xp', JSON.stringify(xp)); }, [xp]);
+            useEffect(() => { localStorage.setItem('totalXp', JSON.stringify(totalXp)); }, [totalXp]);
+            useEffect(() => { localStorage.setItem('coins', JSON.stringify(coins)); }, [coins]);
+            useEffect(() => { localStorage.setItem('lastResetDate', JSON.stringify(lastResetDate)); }, [lastResetDate]);
+            useEffect(() => { localStorage.setItem('xpPerLevel', JSON.stringify(xpPerLevel)); }, [xpPerLevel]);
+            useEffect(() => { localStorage.setItem('autoResetTime', JSON.stringify(autoResetTime)); }, [autoResetTime]);
+            useEffect(() => { localStorage.setItem('habits', JSON.stringify(habits)); }, [habits]);
+            useEffect(() => { localStorage.setItem('rewards', JSON.stringify(rewards)); }, [rewards]);
+            useEffect(() => { localStorage.setItem('roadmapSections', JSON.stringify(roadmapSections)); }, [roadmapSections]);
+
+            const xpToNextLevel = xpPerLevel;
+            const progressPercentage = (xp / xpToNextLevel) * 100;
+
+            // Auto-reset daily tasks
+            useEffect(() => {
+                const checkForReset = () => {
+                    const today = new Date().toDateString();
+                    const now = new Date();
+                    const [hours, minutes] = autoResetTime.split(':');
+                    const resetTime = new Date();
+                    resetTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                    
+                    if (today !== lastResetDate || (today === lastResetDate && now >= resetTime && lastResetDate !== today)) {
+                        setHabits(prev => prev.map(habit => ({ ...habit, completed: false })));
+                        setLastResetDate(today);
+                    }
+                };
+
+                checkForReset();
+                const interval = setInterval(checkForReset, 60000);
+                return () => clearInterval(interval);
+            }, [lastResetDate, autoResetTime]);
+
+            // Level up animation
+            useEffect(() => {
+                if (xp >= xpToNextLevel) {
+                    setShowLevelUpAnimation(true);
+                    setLevel(prev => prev + 1);
+                    setXp(prev => prev - xpToNextLevel);
+                    
+                    setTimeout(() => {
+                        setShowLevelUpAnimation(false);
+                    }, 3000);
+                }
+            }, [xp, xpToNextLevel]);
+
+            const toggleHabit = (habitId) => {
+                setHabits(prev => prev.map(habit => {
+                    if (habit.id === habitId) {
+                        const wasCompleted = habit.completed;
+                        const newCompleted = !wasCompleted;
+                        
+                        if (newCompleted) {
+                            setXp(prevXp => prevXp + habit.xp);
+                            setTotalXp(prevTotal => prevTotal + habit.xp);
+                            setCoins(prevCoins => prevCoins + Math.floor(habit.xp / 2));
+                            return { ...habit, completed: true, streak: habit.streak + 1 };
+                        } else {
+                            setXp(prevXp => Math.max(0, prevXp - habit.xp));
+                            setTotalXp(prevTotal => Math.max(0, prevTotal - habit.xp));
+                            setCoins(prevCoins => Math.max(0, prevCoins - Math.floor(habit.xp / 2)));
+                            return { ...habit, completed: false, streak: Math.max(0, habit.streak - 1) };
+                        }
+                    }
+                    return habit;
+                }));
+            };
+
+            const addHabit = () => {
+                if (newHabit.name.trim()) {
+                    setHabits(prev => [...prev, {
+                        id: Date.now(),
+                        name: newHabit.name,
+                        xp: parseInt(newHabit.xp),
+                        streak: 0,
+                        completed: false,
+                        category: newHabit.category
+                    }]);
+                    setNewHabit({ name: '', xp: 50, category: 'General' });
+                }
+            };
+
+            const deleteHabit = (habitId) => {
+                setHabits(prev => prev.filter(habit => habit.id !== habitId));
+            };
+
+            const addReward = () => {
+                if (newReward.name.trim()) {
+                    setRewards(prev => [...prev, {
+                        id: Date.now(),
+                        name: newReward.name,
+                        cost: parseInt(newReward.cost),
+                        type: newReward.type
+                    }]);
+                    setNewReward({ name: '', cost: 100, type: 'treat' });
+                }
+            };
+
+            const claimReward = (rewardId) => {
+                const reward = rewards.find(r => r.id === rewardId);
+                if (reward && coins >= reward.cost) {
+                    setCoins(prev => prev - reward.cost);
+                    alert(`Reward claimed: ${reward.name}! 🎉`);
+                }
+            };
+
+            const deleteReward = (rewardId) => {
+                setRewards(prev => prev.filter(reward => reward.id !== rewardId));
+            };
+
+            const addRoadmapSection = () => {
+                if (newSection.title.trim() && newSection.levelStart && newSection.levelEnd && newSection.description.trim()) {
+                    const filteredMilestones = newSection.milestones.filter(m => m.trim() !== '');
+                    setRoadmapSections(prev => [...prev, {
+                        id: Date.now(),
+                        title: newSection.title,
+                        level: `${newSection.levelStart}-${newSection.levelEnd}`,
+                        description: newSection.description,
+                        milestones: filteredMilestones.length > 0 ? filteredMilestones : ['Complete this section']
+                    }]);
+                    setNewSection({ title: '', levelStart: '', levelEnd: '', description: '', milestones: [''] });
+                }
+            };
+
+            const deleteRoadmapSection = (sectionId) => {
+                setRoadmapSections(prev => prev.filter(section => section.id !== sectionId));
+            };
+
+            const addMilestone = () => {
+                setNewSection(prev => ({
+                    ...prev,
+                    milestones: [...prev.milestones, '']
+                }));
+            };
+
+            const updateMilestone = (index, value) => {
+                setNewSection(prev => ({
+                    ...prev,
+                    milestones: prev.milestones.map((milestone, i) => 
+                        i === index ? value : milestone
+                    )
+                }));
+            };
+
+            const removeMilestone = (index) => {
+                if (newSection.milestones.length > 1) {
+                    setNewSection(prev => ({
+                        ...prev,
+                        milestones: prev.milestones.filter((_, i) => i !== index)
+                    }));
+                }
+            };
+
+            const savePlayerName = () => {
+                setPlayerName(tempPlayerName);
+                setEditingPlayer(false);
+            };
+
+            const resetDay = () => {
+                setHabits(prev => prev.map(habit => ({ ...habit, completed: false })));
+            };
+
+            const getAnalyticsData = () => {
+                const totalHabits = habits.length;
+                const completedToday = habits.filter(h => h.completed).length;
+                const completionRate = totalHabits > 0 ? (completedToday / totalHabits * 100).toFixed(1) : 0;
+                const avgStreak = totalHabits > 0 ? (habits.reduce((sum, h) => sum + h.streak, 0) / totalHabits).toFixed(1) : 0;
+                
+                return { totalHabits, completedToday, completionRate, avgStreak };
+            };
+
+            const analytics = getAnalyticsData();
+
+            const TabButton = ({ id, icon, label, active, onClick }) => (
+                React.createElement('button', {
+                    onClick: () => onClick(id),
+                    className: `flex flex-col items-center p-3 rounded-lg transition-all ${
+                        active 
+                            ? 'bg-blue-600 text-white shadow-lg' 
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`
+                }, [
+                    React.createElement('span', { key: 'icon', className: `icon ${icon}` }),
+                    React.createElement('span', { key: 'label', className: 'text-xs mt-1' }, label)
+                ])
+            );
+
+            return React.createElement('div', {
+                className: 'min-h-screen bg-gradient-main text-white'
+            }, [
+                // Level Up Animation
+                showLevelUpAnimation && React.createElement('div', {
+                    key: 'levelup',
+                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm'
+                }, React.createElement('div', {
+                    className: 'bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 p-8 rounded-2xl text-center animate-bounce shadow-2xl'
+                }, [
+                    React.createElement('div', { key: 'emoji', className: 'text-6xl mb-4' }, '🎉'),
+                    React.createElement('div', { key: 'title', className: 'text-3xl font-bold text-white mb-2' }, 'LEVEL UP!'),
+                    React.createElement('div', { key: 'level', className: 'text-xl text-white' }, `You reached Level ${level}!`),
+                    React.createElement('div', { key: 'stars', className: 'mt-4 flex justify-center space-x-2' },
+                        [...Array(5)].map((_, i) => 
+                            React.createElement('div', { 
+                                key: i, 
+                                className: 'w-2 h-2 bg-white rounded-full animate-ping',
+                                style: { animationDelay: `${i * 0.1}s` }
+                            })
+                        )
+                    )
+                ])),
+
+                React.createElement('div', {
+                    key: 'main',
+                    className: 'max-w-md mx-auto bg-white bg-opacity-10 backdrop-blur-lg min-h-screen'
+                }, [
+                    // Header
+                    React.createElement('div', {
+                        key: 'header',
+                        className: 'p-6 bg-gradient-purple'
+                    }, [
+                        React.createElement('div', {
+                            key: 'header-top',
+                            className: 'flex items-center justify-between mb-4'
+                        }, [
+                            React.createElement('div', {
+                                key: 'player-info',
+                                className: 'flex items-center space-x-3'
+                            }, [
+                                React.createElement('div', {
+                                    key: 'avatar',
+                                    className: 'bg-white bg-opacity-20 p-2 rounded-full'
+                                }, React.createElement('span', { className: 'icon icon-user' })),
+                                React.createElement('div', { key: 'name-section' }, [
+                                    editingPlayer ? React.createElement('div', {
+                                        key: 'edit-mode',
+                                        className: 'flex items-center space-x-2'
+                                    }, [
+                                        React.createElement('input', {
+                                            key: 'name-input',
+                                            type: 'text',
+                                            value: tempPlayerName,
+                                            onChange: (e) => setTempPlayerName(e.target.value),
+                                            className: 'bg-white bg-opacity-20 px-2 py-1 rounded text-sm',
+                                            autoFocus: true
+                                        }),
+                                        React.createElement('button', {
+                                            key: 'save-btn',
+                                            onClick: savePlayerName,
+                                            className: 'text-green-300'
+                                        }, React.createElement('span', { className: 'icon icon-check' }))
+                                    ]) : React.createElement('div', {
+                                        key: 'display-mode',
+                                        className: 'flex items-center space-x-2'
+                                    }, [
+                                        React.createElement('h1', { key: 'name', className: 'text-xl font-bold' }, playerName),
+                                        React.createElement('button', {
+                                            key: 'edit-btn',
+                                            onClick: () => setEditingPlayer(true),
+                                            className: 'text-white text-opacity-70'
+                                        }, React.createElement('span', { className: 'icon icon-edit' }))
+                                    ]),
+                                    React.createElement('p', {
+                                        key: 'level-text',
+                                        className: 'text-white text-opacity-80 text-sm'
+                                    }, `Level ${level} Genius`)
+                                ])
+                            ]),
+                            React.createElement('div', {
+                                key: 'coins',
+                                className: 'text-right'
+                            }, React.createElement('div', {
+                                className: 'flex items-center space-x-1 text-yellow-300'
+                            }, [
+                                React.createElement('span', { key: 'trophy', className: 'icon icon-trophy' }),
+                                React.createElement('span', { key: 'coin-count', className: 'font-bold' }, coins)
+                            ]))
+                        ]),
+                        
+                        // XP Bar
+                        React.createElement('div', { key: 'xp-section', className: 'mb-2' }, [
+                            React.createElement('div', {
+                                key: 'xp-text',
+                                className: 'flex justify-between text-sm mb-1'
+                            }, [
+                                React.createElement('span', { key: 'xp-current' }, `XP: ${xp}/${xpToNextLevel}`),
+                                React.createElement('span', { key: 'xp-percent' }, `${progressPercentage.toFixed(1)}%`)
+                            ]),
+                            React.createElement('div', {
+                                key: 'xp-bar-bg',
+                                className: 'bg-white bg-opacity-20 rounded-full h-2'
+                            }, React.createElement('div', {
+                                className: 'bg-gradient-to-r from-yellow-400 to-orange-500 h-2 rounded-full transition-all duration-500',
+                                style: { width: `${Math.min(progressPercentage, 100)}%` }
+                            }))
+                        ])
+                    ]),
+
+                    // Content
+                    React.createElement('div', { key: 'content', className: 'p-4 flex-1' }, [
+                        activeTab === 'dashboard' && React.createElement('div', {
+                            key: 'dashboard',
+                            className: 'space-y-4'
+                        }, [
+                            React.createElement('div', {
+                                key: 'dashboard-header',
+                                className: 'flex justify-between items-center'
+                            }, [
+                                React.createElement('h2', { className: 'text-xl font-bold' }, "Today's Quests"),
+                                React.createElement('div', { className: 'flex space-x-2' }, [
+                                    React.createElement('input', {
+                                        key: 'reset-time',
+                                        type: 'time',
+                                        value: autoResetTime,
+                                        onChange: (e) => setAutoResetTime(e.target.value),
+                                        className: 'bg-white bg-opacity-20 px-2 py-1 rounded text-xs text-white',
+                                        title: 'Auto-reset time'
+                                    }),
+                                    React.createElement('button', {
+                                        key: 'reset-btn',
+                                        onClick: resetDay,
+                                        className: 'bg-orange-500 px-3 py-1 rounded text-sm'
+                                    }, 'Reset Now')
+                                ])
+                            ]),
+                            
+                            ...habits.map(habit => React.createElement('div', {
+                                key: habit.id,
+                                className: 'bg-white bg-opacity-10 backdrop-blur p-4 rounded-lg'
+                            }, [
+                                React.createElement('div', {
+                                    key: 'habit-header',
+                                    className: 'flex items-center justify-between mb-2'
+                                }, [
+                                    React.createElement('div', {
+                                        className: 'flex items-center space-x-3'
+                                    }, [
+                                        React.createElement('button', {
+                                            onClick: () => toggleHabit(habit.id),
+                                            className: `transition-all duration-200 ${habit.completed ? 'text-green-400 transform scale-110' : 'text-gray-400 hover:text-green-400'}`
+                                        }, React.createElement('span', { 
+                                            className: `icon ${habit.completed ? 'icon-check' : 'icon-circle'}` 
+                                        })),
+                                        React.createElement('div', {}, [
+                                            React.createElement('h3', { className: 'font-semibold' }, habit.name),
+                                            React.createElement('p', { className: 'text-sm text-white text-opacity-70' }, habit.category)
+                                        ])
+                                    ]),
+                                    React.createElement('button', {
+                                        onClick: () => deleteHabit(habit.id),
+                                        className: 'text-red-400 hover:text-red-300'
+                                    }, React.createElement('span', { className: 'icon icon-trash' }))
+                                ]),
+                                React.createElement('div', {
+                                    key: 'habit-stats',
+                                    className: 'flex justify-between items-center text-sm'
+                                }, React.createElement('div', {
+                                    className: 'flex items-center space-x-4'
+                                }, [
+                                    React.createElement('span', {
+                                        className: 'flex items-center space-x-1 text-blue-300'
+                                    }, [
+                                        React.createElement('span', { className: 'icon icon-zap' }),
+                                        React.createElement('span', {}, `${habit.xp} XP`)
+                                    ]),
+                                    React.createElement('span', {
+                                        className: 'flex items-center space-x-1 text-orange-300'
+                                    }, [
+                                        React.createElement('span', { className: 'icon icon-star' }),
+                                        React.createElement('span', {}, `${habit.streak} streak`)
+                                    ])
+                                ]))
+                            ])),
+
+                            React.createElement('div', {
+                                key: 'add-habit',
+                                className: 'bg-white bg-opacity-10 backdrop-blur p-4 rounded-lg'
+                            }, [
+                                React.createElement('h3', { key: 'add-title', className: 'font-semibold mb-3' }, 'Add New Quest'),
+                                React.createElement('div', { key: 'add-form', className: 'space-y-3' }, [
+                                    React.createElement('input', {
+                                        key: 'habit-name',
+                                        type: 'text',
+                                        placeholder: 'Quest name',
+                                        value: newHabit.name,
+                                        onChange: (e) => setNewHabit({...newHabit, name: e.target.value}),
+                                        className: 'w-full bg-white bg-opacity-20 p-2 rounded text-white placeholder-white placeholder-opacity-50'
+                                    }),
+                                    React.createElement('div', { key: 'habit-details', className: 'flex space-x-2' }, [
+                                        React.createElement('input', {
+                                            key: 'habit-xp',
+                                            type: 'number',
+                                            placeholder: 'XP',
+                                            value: newHabit.xp,
+                                            onChange: (e) => setNewHabit({...newHabit, xp: e.target.value}),
+                                            className: 'flex-1 bg-white bg-opacity-20 p-2 rounded text-white placeholder-white placeholder-opacity-50'
+                                        }),
+                                        React.createElement('select', {
+                                            key: 'habit-category',
+                                            value: newHabit.category,
+                                            onChange: (e) => setNewHabit({...newHabit, category: e.target.value}),
+                                            className: 'flex-1 bg-white bg-opacity-20 p-2 rounded text-white'
+                                        }, [
+                                            React.createElement('option', { key: 'general', value: 'General' }, 'General'),
+                                            React.createElement('option', { key: 'health', value: 'Health' }, 'Health'),
+                                            React.createElement('option', { key: 'learning', value: 'Learning' }, 'Learning'),
+                                            React.createElement('option', { key: 'wellness', value: 'Wellness' }, 'Wellness'),
+                                            React.createElement('option', { key: 'work', value: 'Work' }, 'Work')
+                                        ])
+                                    ]),
+                                    React.createElement('button', {
+                                        key: 'add-btn',
+                                        onClick: addHabit,
+                                        className: 'w-full bg-gradient-to-r from-green-500 to-green-600 p-2 rounded font-semibold'
+                                    }, 'Add Quest')
+                                ])
+                            ])
+                        ]),
+
+                        activeTab === 'rewards' && React.createElement('div', {
+                            key: 'rewards',
+                            className: 'space-y-4'
+                        }, [
+                            React.createElement('h2', { key: 'rewards-title', className: 'text-xl font-bold' }, 'Reward Shop'),
+                            
+                            ...rewards.map(reward => React.createElement('div', {
+                                key: reward.id,
+                                className: 'bg-white bg-opacity-10 backdrop-blur p-4 rounded-lg'
+                            }, React.createElement('div', {
+                                className: 'flex items-center justify-between'
+                            }, [
+                                React.createElement('div', {
+                                    key: 'reward-info',
+                                    className: 'flex items-center space-x-3'
+                                }, [
+                                    React.createElement('span', { className: 'icon icon-gift text-yellow-400' }),
+                                    React.createElement('div', {}, [
+                                        React.createElement('h3', { className: 'font-semibold' }, reward.name),
+                                        React.createElement('p', { className: 'text-sm text-white text-opacity-70 capitalize' }, reward.type)
+                                    ])
+                                ]),
+                                React.createElement('div', {
+                                    key: 'reward-actions',
+                                    className: 'flex items-center space-x-2'
+                                }, [
+                                    React.createElement('div', {
+                                        className: 'text-yellow-300 font-bold flex items-center space-x-1'
+                                    }, [
+                                        React.createElement('span', { className: 'icon icon-trophy' }),
+                                        React.createElement('span', {}, reward.cost)
+                                    ]),
+                                    React.createElement('button', {
+                                        onClick: () => claimReward(reward.id),
+                                        disabled: coins < reward.cost,
+                                        className: `px-3 py-1 rounded text-sm ${
+                                            coins >= reward.cost 
+                                                ? 'bg-green-600 hover:bg-green-700' 
+                                                : 'bg-gray-600 cursor-not-allowed opacity-50'
+                                        }`
+                                    }, 'Claim'),
+                                    React.createElement('button', {
+                                        onClick: () => deleteReward(reward.id),
+                                        className: 'text-red-400 hover:text-red-300'
+                                    }, React.createElement('span', { className: 'icon icon-trash' }))
+                                ])
+                            ]))),
+
+                            React.createElement('div', {
+                                key: 'add-reward',
+                                className: 'bg-white bg-opacity-10 backdrop-blur p-4 rounded-lg'
+                            }, [
+                                React.createElement('h3', { key: 'add-reward-title', className: 'font-semibold mb-3' }, 'Add New Reward'),
+                                React.createElement('div', { key: 'add-reward-form', className: 'space-y-3' }, [
+                                    React.createElement('input', {
+                                        key: 'reward-name',
+                                        type: 'text',
+                                        placeholder: 'Reward name',
+                                        value: newReward.name,
+                                        onChange: (e) => setNewReward({...newReward, name: e.target.value}),
+                                        className: 'w-full bg-white bg-opacity-20 p-2 rounded text-white placeholder-white placeholder-opacity-50'
+                                    }),
+                                    React.createElement('div', { key: 'reward-details', className: 'flex space-x-2' }, [
+                                        React.createElement('input', {
+                                            key: 'reward-cost',
+                                            type: 'number',
+                                            placeholder: 'Cost',
+                                            value: newReward.cost,
+                                            onChange: (e) => setNewReward({...newReward, cost: e.target.value}),
+                                            className: 'flex-1 bg-white bg-opacity-20 p-2 rounded text-white placeholder-white placeholder-opacity-50'
+                                        }),
+                                        React.createElement('select', {
+                                            key: 'reward-type',
+                                            value: newReward.type,
+                                            onChange: (e) => setNewReward({...newReward, type: e.target.value}),
+                                            className: 'flex-1 bg-white bg-opacity-20 p-2 rounded text-white'
+                                        }, [
+                                            React.createElement('option', { key: 'treat', value: 'treat' }, 'Treat'),
+                                            React.createElement('option', { key: 'entertainment', value: 'entertainment' }, 'Entertainment'),
+                                            React.createElement('option', { key: 'purchase', value: 'purchase' }, 'Purchase'),
+                                            React.createElement('option', { key: 'activity', value: 'activity' }, 'Activity')
+                                        ])
+                                    ]),
+                                    React.createElement('button', {
+                                        key: 'add-reward-btn',
+                                        onClick: addReward,
+                                        className: 'w-full bg-gradient-to-r from-purple-500 to-pink-600 p-2 rounded font-semibold'
+                                    }, 'Add Reward')
+                                ])
+                            ])
+                        ]),
+
+                        activeTab === 'analytics' && React.createElement('div', {
+                            key: 'analytics',
+                            className: 'space-y-4'
+                        }, [
+                            React.createElement('h2', { key: 'analytics-title', className: 'text-xl font-bold' }, 'Analytics'),
+                            
+                            React.createElement('div', { key: 'analytics-grid', className: 'grid grid-cols-2 gap-4' }, [
+                                React.createElement('div', {
+                                    key: 'progress-card',
+                                    className: 'bg-white bg-opacity-10 backdrop-blur p-4 rounded-lg text-center'
+                                }, [
+                                    React.createElement('span', { key: 'progress-icon', className: 'icon icon-bar text-blue-400 text-2xl block mb-2' }),
+                                    React.createElement('div', { key: 'progress-value', className: 'text-2xl font-bold' }, `${analytics.completedToday}/${analytics.totalHabits}`),
+                                    React.createElement('div', { key: 'progress-label', className: 'text-sm text-white text-opacity-70' }, "Today's Progress")
+                                ]),
+                                
+                                React.createElement('div', {
+                                    key: 'rate-card',
+                                    className: 'bg-white bg-opacity-10 backdrop-blur p-4 rounded-lg text-center'
+                                }, [
+                                    React.createElement('span', { key: 'rate-icon', className: 'icon icon-trending text-green-400 text-2xl block mb-2' }),
+                                    React.createElement('div', { key: 'rate-value', className: 'text-2xl font-bold' }, `${analytics.completionRate}%`),
+                                    React.createElement('div', { key: 'rate-label', className: 'text-sm text-white text-opacity-70' }, 'Completion Rate')
+                                ]),
+                                
+                                React.createElement('div', {
+                                    key: 'streak-card',
+                                    className: 'bg-white bg-opacity-10 backdrop-blur p-4 rounded-lg text-center'
+                                }, [
+                                    React.createElement('span', { key: 'streak-icon', className: 'icon icon-star text-yellow-400 text-2xl block mb-2' }),
+                                    React.createElement('div', { key: 'streak-value', className: 'text-2xl font-bold' }, analytics.avgStreak),
+                                    React.createElement('div', { key: 'streak-label', className: 'text-sm text-white text-opacity-70' }, 'Avg Streak')
+                                ]),
+                                
+                                React.createElement('div', {
+                                    key: 'xp-card',
+                                    className: 'bg-white bg-opacity-10 backdrop-blur p-4 rounded-lg text-center'
+                                }, [
+                                    React.createElement('span', { key: 'xp-icon', className: 'icon icon-zap text-purple-400 text-2xl block mb-2' }),
+                                    React.createElement('div', { key: 'xp-value', className: 'text-2xl font-bold' }, totalXp),
+                                    React.createElement('div', { key: 'xp-label', className: 'text-sm text-white text-opacity-70' }, 'Total XP')
+                                ])
+                            ]),
+
+                            React.createElement('div', {
+                                key: 'habit-breakdown',
+                                className: 'bg-white bg-opacity-10 backdrop-blur p-4 rounded-lg'
+                            }, [
+                                React.createElement('h3', { key: 'breakdown-title', className: 'font-semibold mb-3' }, 'Habit Breakdown'),
+                                ...habits.map(habit => React.createElement('div', {
+                                    key: habit.id,
+                                    className: 'flex justify-between items-center mb-2 text-sm'
+                                }, [
+                                    React.createElement('span', { key: 'habit-name' }, habit.name),
+                                    React.createElement('div', { key: 'habit-stats', className: 'flex space-x-4 text-white text-opacity-70' }, [
+                                        React.createElement('span', { key: 'streak' }, `Streak: ${habit.streak}`),
+                                        React.createElement('span', { key: 'xp' }, `XP: ${habit.xp}`)
+                                    ])
+                                ]))
+                            ])
+                        ]),
+
+                        activeTab === 'roadmap' && React.createElement('div', {
+                            key: 'roadmap',
+                            className: 'space-y-4'
+                        }, [
+                            React.createElement('div', {
+                                key: 'roadmap-header',
+                                className: 'flex justify-between items-center'
+                            }, [
+                                React.createElement('h2', { className: 'text-xl font-bold' }, 'Progress Roadmap'),
+                                React.createElement('div', { className: 'flex items-center space-x-2' }, [
+                                    React.createElement('span', { className: 'text-sm text-white text-opacity-70' }, 'XP per level:'),
+                                    React.createElement('input', {
+                                        type: 'number',
+                                        value: xpPerLevel,
+                                        onChange: (e) => setXpPerLevel(parseInt(e.target.value) || 100),
+                                        className: 'bg-white bg-opacity-20 px-2 py-1 rounded text-sm w-16 text-white',
+                                        min: '50',
+                                        max: '1000'
+                                    })
+                                ])
+                            ]),
+                            
+                            ...roadmapSections.map((section, index) => React.createElement('div', {
+                                key: section.id,
+                                className: 'bg-white bg-opacity-10 backdrop-blur p-4 rounded-lg'
+                            }, React.createElement('div', {
+                                className: 'flex items-start space-x-3'
+                            }, [
+                                React.createElement('div', {
+                                    key: 'section-number',
+                                    className: `w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${
+                                        level >= parseInt(section.level.split('-')[0]) 
+                                            ? 'bg-green-500' 
+                                            : 'bg-gray-500'
+                                    }`
+                                }, index + 1),
+                                React.createElement('div', { key: 'section-content', className: 'flex-1' }, [
+                                    React.createElement('div', {
+                                        key: 'section-header',
+                                        className: 'flex items-center justify-between mb-2'
+                                    }, [
+                                        React.createElement('h3', { className: 'font-semibold' }, section.title),
+                                        React.createElement('div', { className: 'flex items-center space-x-2' }, [
+                                            React.createElement('span', { className: 'text-sm text-white text-opacity-70' }, `Level ${section.level}`),
+                                            React.createElement('button', {
+                                                onClick: () => deleteRoadmapSection(section.id),
+                                                className: 'text-red-400 hover:text-red-300'
+                                            }, React.createElement('span', { className: 'icon icon-trash' }))
+                                        ])
+                                    ]),
+                                    React.createElement('p', {
+                                        key: 'section-description',
+                                        className: 'text-sm text-white text-opacity-80 mb-3'
+                                    }, section.description),
+                                    React.createElement('div', { key: 'milestones' }, [
+                                        React.createElement('h4', { className: 'text-sm font-semibold mb-2' }, 'Milestones:'),
+                                        ...section.milestones.map((milestone, idx) => React.createElement('div', {
+                                            key: idx,
+                                            className: 'flex items-center space-x-2 text-sm text-white text-opacity-70 mb-1'
+                                        }, [
+                                            React.createElement('span', { className: 'icon icon-target' }),
+                                            React.createElement('span', {}, milestone)
+                                        ]))
+                                    ])
+                                ])
+                            ]))),
+
+                            React.createElement('div', {
+                                key: 'add-section',
+                                className: 'bg-white bg-opacity-10 backdrop-blur p-4 rounded-lg'
+                            }, [
+                                React.createElement('h3', { key: 'add-section-title', className: 'font-semibold mb-3' }, 'Add New Section'),
+                                React.createElement('div', { key: 'add-section-form', className: 'space-y-3' }, [
+                                    React.createElement('input', {
+                                        key: 'section-title',
+                                        type: 'text',
+                                        placeholder: 'Section title',
+                                        value: newSection.title,
+                                        onChange: (e) => setNewSection({...newSection, title: e.target.value}),
+                                        className: 'w-full bg-white bg-opacity-20 p-2 rounded text-white placeholder-white placeholder-opacity-50'
+                                    }),
+                                    React.createElement('div', { key: 'level-range', className: 'flex space-x-2' }, [
+                                        React.createElement('input', {
+                                            key: 'start-level',
+                                            type: 'number',
+                                            placeholder: 'Start Level',
+                                            value: newSection.levelStart,
+                                            onChange: (e) => setNewSection({...newSection, levelStart: e.target.value}),
+                                            className: 'flex-1 bg-white bg-opacity-20 p-2 rounded text-white placeholder-white placeholder-opacity-50'
+                                        }),
+                                        React.createElement('input', {
+                                            key: 'end-level',
+                                            type: 'number',
+                                            placeholder: 'End Level',
+                                            value: newSection.levelEnd,
+                                            onChange: (e) => setNewSection({...newSection, levelEnd: e.target.value}),
+                                            className: 'flex-1 bg-white bg-opacity-20 p-2 rounded text-white placeholder-white placeholder-opacity-50'
+                                        })
+                                    ]),
+                                    React.createElement('textarea', {
+                                        key: 'section-description',
+                                        placeholder: 'Section description',
+                                        value: newSection.description,
+                                        onChange: (e) => setNewSection({...newSection, description: e.target.value}),
+                                        className: 'w-full bg-white bg-opacity-20 p-2 rounded text-white placeholder-white placeholder-opacity-50 resize-none',
+                                        rows: '2'
+                                    }),
+                                    
+                                    React.createElement('div', { key: 'milestones-section' }, [
+                                        React.createElement('div', {
+                                            key: 'milestones-header',
+                                            className: 'flex items-center justify-between mb-2'
+                                        }, [
+                                            React.createElement('h4', { className: 'text-sm font-semibold' }, 'Milestones:'),
+                                            React.createElement('button', {
+                                                onClick: addMilestone,
+                                                className: 'text-green-400 hover:text-green-300'
+                                            }, React.createElement('span', { className: 'icon icon-plus' }))
+                                        ]),
+                                        ...newSection.milestones.map((milestone, index) => React.createElement('div', {
+                                            key: index,
+                                            className: 'flex items-center space-x-2 mb-2'
+                                        }, [
+                                            React.createElement('input', {
+                                                key: 'milestone-input',
+                                                type: 'text',
+                                                placeholder: `Milestone ${index + 1}`,
+                                                value: milestone,
+                                                onChange: (e) => updateMilestone(index, e.target.value),
+                                                className: 'flex-1 bg-white bg-opacity-20 p-2 rounded text-white placeholder-white placeholder-opacity-50 text-sm'
+                                            }),
+                                            newSection.milestones.length > 1 && React.createElement('button', {
+                                                key: 'remove-milestone',
+                                                onClick: () => removeMilestone(index),
+                                                className: 'text-red-400 hover:text-red-300'
+                                            }, React.createElement('span', { className: 'icon icon-trash' }))
+                                        ]))
+                                    ]),
+                                    
+                                    React.createElement('button', {
+                                        key: 'add-section-btn',
+                                        onClick: addRoadmapSection,
+                                        className: 'w-full bg-gradient-to-r from-indigo-500 to-purple-600 p-2 rounded font-semibold'
+                                    }, 'Add Section')
+                                ])
+                            ])
+                        ])
+                    ]),
+
+                    // Bottom Navigation
+                    React.createElement('div', {
+                        key: 'navigation',
+                        className: 'bg-white bg-opacity-10 backdrop-blur p-4'
+                    }, React.createElement('div', {
+                        className: 'grid grid-cols-4 gap-2'
+                    }, [
+                        React.createElement(TabButton, { 
+                            key: 'nav-dashboard',
+                            id: 'dashboard', 
+                            icon: 'icon-calendar', 
+                            label: 'Quests', 
+                            active: activeTab === 'dashboard', 
+                            onClick: setActiveTab 
+                        }),
+                        React.createElement(TabButton, { 
+                            key: 'nav-rewards',
+                            id: 'rewards', 
+                            icon: 'icon-gift', 
+                            label: 'Rewards', 
+                            active: activeTab === 'rewards', 
+                            onClick: setActiveTab 
+                        }),
+                        React.createElement(TabButton, { 
+                            key: 'nav-analytics',
+                            id: 'analytics', 
+                            icon: 'icon-bar', 
+                            label: 'Analytics', 
+                            active: activeTab === 'analytics', 
+                            onClick: setActiveTab 
+                        }),
+                        React.createElement(TabButton, { 
+                            key: 'nav-roadmap',
+                            id: 'roadmap', 
+                            icon: 'icon-map', 
+                            label: 'Roadmap', 
+                            active: activeTab === 'roadmap', 
+                            onClick: setActiveTab 
+                        })
+                    ]))
+                ])
+            ]);
+        };
+
+        // Export and Download Functionality
+        const exportData = () => {
+            const data = {
+                playerName: localStorage.getItem('playerName'),
+                level: localStorage.getItem('level'),
+                xp: localStorage.getItem('xp'),
+                totalXp: localStorage.getItem('totalXp'),
+                coins: localStorage.getItem('coins'),
+                habits: localStorage.getItem('habits'),
+                rewards: localStorage.getItem('rewards'),
+                roadmapSections: localStorage.getItem('roadmapSections'),
+                xpPerLevel: localStorage.getItem('xpPerLevel'),
+                autoResetTime: localStorage.getItem('autoResetTime'),
+                exportDate: new Date().toISOString()
+            };
+            
+            const dataStr = JSON.stringify(data, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `genius-tracker-backup-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+        };
+
+        const importData = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        Object.keys(data).forEach(key => {
+                            if (key !== 'exportDate' && data[key]) {
+                                localStorage.setItem(key, data[key]);
+                            }
+                        });
+                        alert('Data imported successfully! Please refresh the page.');
+                    } catch (error) {
+                        alert('Invalid backup file!');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        };
+
+        // Add export/import buttons to the page
+        const exportImportButtons = React.createElement('div', {
+            style: { 
+                position: 'fixed', 
+                top: '10px', 
+                right: '10px', 
+                zIndex: 1000,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px'
+            }
+        }, [
+            React.createElement('button', {
+                key: 'export',
+                onClick: exportData,
+                style: {
+                    padding: '8px 12px',
+                    backgroundColor: '#4ade80',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                }
+            }, '📤 Export'),
+            React.createElement('label', {
+                key: 'import',
+                style: {
+                    padding: '8px 12px',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    textAlign: 'center'
+                }
+            }, [
+                '📥 Import',
+                React.createElement('input', {
+                    type: 'file',
+                    accept: '.json',
+                    onChange: importData,
+                    style: { display: 'none' }
+                })
+            ])
+        ]);
+
+        ReactDOM.render([
+            React.createElement(GeniusTracker, { key: 'app' }),
+            exportImportButtons
+        ], document.getElementById('root'));
+    </script>
+</body>
+</html>
